@@ -309,3 +309,14 @@ const test = () => {
 
 
 app.listen(PORT, () => console.log("API RUNNING ON PORT " + PORT))
+
+
+// update product + image
+    // updata product di database
+    // update product image di database
+    // delete old image di storage
+
+// delete product
+    // delete product di database
+    // delete product_image di database
+    // delete image di storage
