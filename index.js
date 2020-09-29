@@ -2,11 +2,13 @@ const express = require('express')
 const app = express()
 const PORT = 5000
 const mysql = require('mysql')
+const cors = require('cors')
 const upload = require('./helpers/multerUploadSingle')()
 const multer = require('multer')
 const deleteImages = require('./helpers/deleteImages')
-
 require('dotenv').config()
+
+app.use(cors())
 
 const db = mysql.createConnection({
     user : process.env.DB_USER,
@@ -306,6 +308,193 @@ const test = () => {
       });
       
 }
+
+
+
+app.delete('/product/:id_product' , (req,res) => {
+    const id_product = req.params.id_product
+
+    try {
+        if(!id_product) throw {message : "id product cannot null"}
+
+        db.beginTransaction((err) => {
+            if(err) throw err
+            // pertama delete product
+            db.query('delete from products where id = ?',id_product , (err,result) => {
+                if(err){
+                    deleteImages(req.files.map((val) => val.path) , req,res)
+                    return db.rollback(() => {
+                        throw err
+                    })
+                }
+
+                // get path old image
+                db.query('select image from product_images where id_product = ?' , id_product , (err,result) => {
+                    if(err){
+                        deleteImages(req.files.map((val) => val.path) , req,res)
+                        return  db.rollback(() => {
+                            throw err
+                        })
+                    }
+                    // result = [
+                    //     {image : "path1"},
+                    //     {image : "path2"},
+                    //     {image : "path3"},
+                    // ]
+
+                    // result = ['path1','path2','path3']
+                    
+                    // transform data structure
+                    let oldImagePath = result.map((val) => {
+                        return val.image.replace('http://localhost:5000/','')
+                    })
+
+                    // delete images on database
+                    db.query('delete from product_images where id_product = ?', id_product,(err,result) => {
+                        if(err){
+                            deleteImages(req.files.map((val) => val.path) , req,res)
+                            return db.rollback(() => {
+                                throw err
+                            })
+                        }
+
+                        // delete images on api
+                        deleteImages(oldImagePath,req,res)
+
+                        db.commit((err) => {
+                            if(err){
+                                return db.rollback(() => {
+                                    throw err
+                                })
+                            }
+
+                            res.json({
+                                error : false,
+                                message : "Delete Data Success"
+                            })
+                        })
+                    })
+
+
+                })
+
+
+            })
+        })
+        
+
+    } catch (error) {
+        
+    }
+   
+})
+
+
+app.patch('/product/:id_product' , (req,res) => {
+    // upload image to api
+    upload2(req,res,(err) => {
+        try {
+            if(err) throw err
+            
+            // edit data price and name
+            let dataToEdit = req.body.data
+            dataToEdit = JSON.parse(dataToEdit)
+            const id = req.params.id_product
+
+            db.beginTransaction((err) => {
+                if(err) throw err
+                db.query('update products set ? where id = ?',[dataToEdit,id],(err,result) => {
+                    if(err){
+                        return db.rollback(() => {
+                            throw err
+                        })
+                    }
+
+                   
+                   
+                    // get old image path
+                    db.query('select image from product_images where id_product = ?' , id,(err,result) => {
+                        if(err){
+                            return db.rollback(() => {
+                                throw err
+                            })
+                        }
+                        //   result = [
+                        //     {image : "path1"},
+                        //     {image : "path2"},
+                        //     {image : "path3"},
+                        // ]
+
+                        // result = ['path1','path2','path3']
+                        let oldImagePath = result.map((val) => {
+                            return val.image.replace('http://localhost:5000/','')
+                        })
+
+
+                        // delete old image path on database
+                        db.query('delete from product_images where id_product = ?',id,(err,result) => {
+                            if(err){
+                                return db.rollback(() => {
+                                    throw err
+                                })
+                            }
+
+                            
+
+                            // insert new image path to database
+                            // generate array of array
+                            let dataToInsert = req.files.map((val) =>{ 
+                                return [
+                                    'http://localhost:5000/' + val.path,
+                                    id
+                                ]
+                            })
+                            db.query('insert into product_images (image,id_product) values ?',[dataToInsert],(err,result) => {
+                                if(err){
+                                    db.rollback(() => {
+                                        throw err
+                                    })
+                                }
+
+                                // delete old image path on api
+                                deleteImages(oldImagePath,req,res)
+
+                                db.commit((err) => {
+                                    if(err){
+                                        return db.rollback(() => {
+                                            throw err
+                                        })
+                                    }
+        
+                                    res.json({
+                                        error : false,
+                                        message : "Update Data Success"
+                                    })
+                                })
+
+                            })
+                        })
+
+                    })
+
+                })
+            })
+
+
+           
+
+
+           
+            
+           
+
+
+
+        } catch (error) {
+            
+        }
+    })
+} )
 
 
 app.listen(PORT, () => console.log("API RUNNING ON PORT " + PORT))
