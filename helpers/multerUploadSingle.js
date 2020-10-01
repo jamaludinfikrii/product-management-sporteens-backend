@@ -6,7 +6,7 @@ const multerUploadSingle = () => {
             next(null , 'storage')
         },
         filename : (req,file,next) => {
-            next(null, 'PIMG-' + Date.now() + '.' + file.mimetype.split('/')[1])
+            next(null, 'PIMG-' + Date.now() + Math.random() * 1000  +'.' + file.mimetype.split('/')[1])
         }
     })
 

@@ -22,6 +22,8 @@ app.get('/' ,(req,res) => {
     res.send("<h1>Welcome</h1)")
 })
 
+app.use('/storage',express.static('storage'))
+
 app.post('/product'  ,(req,res) => {
     upload(req,res,(err) => {
         try {
@@ -89,7 +91,7 @@ const storage = multer.diskStorage({
         next(null,'storage')
     },
     filename : (req,file,next) => {
-        next(null,'IMG-' + Date.now() + '.' + file.mimetype.split('/')[1])
+        next(null,'IMG-' + Date.now() + Math.random() * 1000 + '.' + file.mimetype.split('/')[1])
     }
 })
 
@@ -104,7 +106,7 @@ const fileFilter = (req,file,next) => {
 }
 
 
-const upload2 = multer({storage : storage, fileFilter : fileFilter,limits : {fileSize : 110000}}).array('images',5)
+const upload2 = multer({storage : storage, fileFilter : fileFilter,limits : {fileSize : 1000000}}).array('images',5)
 
 
 
@@ -495,6 +497,74 @@ app.patch('/product/:id_product' , (req,res) => {
         }
     })
 } )
+
+
+
+app.get('/products',(req,res) => {
+    db.query(`select p.id as id_product, name, price, pi.id as id_image, image from products p
+    join product_images pi on p.id = pi.id_product;`, (err,result) => {
+        try {
+
+            // result = [
+            //     {prod : 'prod 1',img : 'img prod 1'},
+            //     {prod : 'prod 1',img : 'img prod 1'},
+            //     {prod : 'prod 1',img : 'img prod 1'},
+            //     {prod : 'prod 2',img : 'img prod 2'},
+            //     {prod : 'prod 2',img : 'img prod 2'},
+            // ]
+
+            // result = [
+            //     {prod : 'prod 1' ,imgs : [{id_img , path}]}
+            // ]
+
+            // {id_product: 3, name: "NIKE AIR MAX 270 REACT BAUHAUS", price: 1200000, id_image: 6, image: "http://localhost:5000/storage/IMG-1601436310499139.24555834007245.jpeg"}
+            let dataTransformed = []
+            if(err) throw err
+
+            result.forEach((val,idx) => {
+
+                let indexExist = null
+
+                // check the id product exist on dataTransformed
+                dataTransformed.forEach((find,index) => {
+                    if(find.id_product === val.id_product){
+                        indexExist = index
+                    }
+                })
+                
+                // if Exist
+                if(indexExist !== null){
+                    // push image data only
+                    dataTransformed[indexExist].images.push({id : val.id_image, path : val.image})
+
+                    // if not exist
+                }else{
+
+                    // push data product and image
+                    dataTransformed.push({
+                        id_product : val.id_product,
+                        name : val.name,
+                        price : val.price,
+                        images : [
+                            {id : val.id_image, path : val.image}
+                        ]
+                    })
+                }
+            })
+
+            
+            res.json({
+                error : false,
+                data : dataTransformed
+            })
+        } catch (error) {
+            res.json({
+                error : true,
+                data : error
+            })
+        }
+    })
+})
 
 
 app.listen(PORT, () => console.log("API RUNNING ON PORT " + PORT))
