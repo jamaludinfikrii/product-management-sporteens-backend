@@ -117,6 +117,7 @@ app.post('/products-2' , (req,res) => {
         
         try {
             if(err) throw err
+            if(req.multerFilterError) throw req.multerFilterError
             console.log(req.files)
             let dataParsed = JSON.parse(req.body.data)
             console.log(dataParsed)
@@ -552,7 +553,7 @@ app.get('/products',(req,res) => {
                 }
             })
 
-            
+
             res.json({
                 error : false,
                 data : dataTransformed
@@ -564,6 +565,62 @@ app.get('/products',(req,res) => {
             })
         }
     })
+})
+
+
+
+const uploadEdit = multer({storage : storage, fileFilter : fileFilter,limits : {fileSize : 1000000}}).single('editImage')
+
+
+app.patch('/image/:id',(req,res) => {
+    // save new image on api
+    uploadEdit(req,res ,(err) =>{
+        try {
+            if(err) throw err
+            if(req.multerFilterError) throw req.multerFilterError
+
+            // get old image path by id_image
+            db.query("select image from product_images where id = ?", req.params.id,(err,result) => {
+                try {
+                    if(err) throw err
+                    // delete old image on api
+                    deleteImages([result[0].image.replace('http://localhost:5000/','')],req,res)
+
+                    // update old image path on db with new image path
+                    db.query('update product_images set ? where id = ?',[{image : 'http://localhost:5000/' + req.file.path} , req.params.id],(err,result) => {
+                        try {
+                            if(err) throw err
+                            res.json({
+                                error : false,
+                                message : "update image success"
+                            })
+                        } catch (error) {
+                            deleteImages([req.file.path],req,res)
+                            res.json({
+                                error : true,
+                                data : error
+                            })
+                        }
+                    })
+                } catch (error) {
+                    deleteImages([req.file.path],req,res)
+                    res.json({
+                        error : true,
+                        data : error
+                    })
+                }
+            })
+           
+
+
+        } catch (error) {
+            deleteImages([req.file.path],req,res)
+            res.json({
+                error : true,
+                data : error
+            })
+        }
+    } )
 })
 
 
